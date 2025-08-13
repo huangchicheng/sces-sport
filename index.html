@@ -42,6 +42,13 @@
     const seatsEl = document.getElementById("seats");
     const usedSeats = new Set();
 
+    // 新增：讀取網址參數
+    function getQueryParam(name) {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get(name);
+    }
+    const fixedClass = getQueryParam("class"); // 如果帶了 ?class=... 就固定
+
     // 建立座號格子 1~25
     for (let i = 1; i <= 25; i++) {
       const seat = document.createElement("div");
@@ -92,6 +99,12 @@
       }
     }
 
+    // 新增：如果有帶 class 參數，選定並鎖住選單
+    if (fixedClass) {
+      classSelect.value = fixedClass;
+      classSelect.disabled = true;       // 鎖住（老師看得到但不能改）
+    }
+
     classSelect.addEventListener("change", fetchUsedSeats);
     dateInput.addEventListener("change", fetchUsedSeats);
 
@@ -102,7 +115,7 @@
       }
     });
 
-    // 送出資料（改用 x-www-form-urlencoded，避免 CORS 預檢）
+    // 送出資料（x-www-form-urlencoded）
     document.getElementById("submit").addEventListener("click", async () => {
       const date = dateInput.value;
       const className = classSelect.value;
@@ -118,7 +131,7 @@
       const params = new URLSearchParams();
       params.set("date", date);
       params.set("className", className);
-      params.set("seats", selected.join(",")); // 後端會 split(",")
+      params.set("seats", selected.join(","));
 
       try {
         const res = await fetch(scriptURL, {
@@ -140,6 +153,7 @@
       }
     });
 
+    // 新增：若有固定班級，頁面載入就先抓一次已使用座號
     fetchUsedSeats();
   </script>
 </body>
