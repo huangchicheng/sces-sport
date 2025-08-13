@@ -1,0 +1,146 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>興嘉國小運動登記</title>
+  <style>
+    body { font-family: sans-serif; padding: 1em; max-width: 600px; margin: auto; }
+    h1 { text-align: center; }
+    label, select, input[type="date"] { display: block; width: 100%; margin-bottom: 1em; font-size: 1.1em; }
+    .seats { display: flex; flex-wrap: wrap; gap: 0.5em; justify-content: center; margin-bottom: 1em; }
+    .seat { width: 3em; height: 3em; line-height: 3em; text-align: center; border: 1px solid #999; border-radius: 5px; cursor: pointer; user-select: none; }
+    .selected { background-color: lightgreen; font-weight: bold; }
+    .used { background-color: lightgray; color: #666; pointer-events: none; }
+    button { width: 100%; padding: 1em; font-size: 1.2em; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+    button:hover { background-color: #0056b3; }
+  </style>
+</head>
+<body>
+  <h1>興嘉國小運動登記</h1>
+
+  <label for="date">選擇日期：</label>
+  <input type="date" id="date"/>
+
+  <label for="class">選擇班級：</label>
+  <select id="class">
+    <option value="">-- 請選擇 --</option>
+  </select>
+
+  <label>完成運動的座號：</label>
+  <div class="seats" id="seats"></div>
+
+  <button id="submit">送出資料</button>
+
+  <script>
+    const scriptURL = "https://script.google.com/macros/s/AKfycbwZ48vkq1N109Yar-4_jydR9sY0V1Rm28bTPtM3w-Xp8iL_KVRgU6lUoURhxcOkeV_Ltg/exec";
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById("date").value = today;
+
+    const classSelect = document.getElementById("class");
+    const dateInput = document.getElementById("date");
+    const seatsEl = document.getElementById("seats");
+    const usedSeats = new Set();
+
+    // 建立座號格子 1~25
+    for (let i = 1; i <= 25; i++) {
+      const seat = document.createElement("div");
+      seat.className = "seat";
+      seat.dataset.seat = i;
+      seat.textContent = i;
+      seatsEl.appendChild(seat);
+    }
+
+    // 取得已使用的座號
+    async function fetchUsedSeats() {
+      usedSeats.clear();
+      document.querySelectorAll(".seat").forEach(el => {
+        el.classList.remove("selected", "used");
+        el.style.pointerEvents = "auto";
+      });
+
+      const date = dateInput.value;
+      const className = classSelect.value;
+      if (!date || !className) return;
+
+      try {
+        const url = `${scriptURL}?date=${encodeURIComponent(date)}&className=${encodeURIComponent(className)}`;
+        const response = await fetch(url);
+        const result = await response.json();
+        const seats = result.seats || [];
+
+        seats.forEach(seatNum => {
+          usedSeats.add(String(seatNum));
+          const el = document.querySelector(`.seat[data-seat='${seatNum}']`);
+          if (el) {
+            el.classList.add("used");
+            el.style.pointerEvents = "none";
+          }
+        });
+      } catch (err) {
+        console.error("取得已登記座號失敗", err);
+      }
+    }
+
+    // 建立班級選項 1~6 年、1~8 班
+    for (let g = 1; g <= 6; g++) {
+      for (let c = 1; c <= 8; c++) {
+        const option = document.createElement("option");
+        option.value = `${g}年${c}班`;
+        option.textContent = option.value;
+        classSelect.appendChild(option);
+      }
+    }
+
+    classSelect.addEventListener("change", fetchUsedSeats);
+    dateInput.addEventListener("change", fetchUsedSeats);
+
+    // 點擊座號選擇
+    seatsEl.addEventListener("click", (e) => {
+      if (e.target.classList.contains("seat") && !e.target.classList.contains("used")) {
+        e.target.classList.toggle("selected");
+      }
+    });
+
+    // 送出資料（改用 x-www-form-urlencoded，避免 CORS 預檢）
+    document.getElementById("submit").addEventListener("click", async () => {
+      const date = dateInput.value;
+      const className = classSelect.value;
+      const selected = Array.from(document.querySelectorAll(".seat.selected"))
+        .map(el => el.dataset.seat)
+        .filter(seat => !usedSeats.has(seat));
+
+      if (!date || !className || selected.length === 0) {
+        alert("請選擇日期、班級，並至少選一個未登記的座號。");
+        return;
+      }
+
+      const params = new URLSearchParams();
+      params.set("date", date);
+      params.set("className", className);
+      params.set("seats", selected.join(",")); // 後端會 split(",")
+
+      try {
+        const res = await fetch(scriptURL, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+          body: params.toString()
+        });
+
+        if (!res.ok) {
+          const t = await res.text().catch(() => "");
+          throw new Error(`HTTP ${res.status} ${res.statusText} ${t}`);
+        }
+
+        alert("資料已送出！");
+        fetchUsedSeats();
+      } catch (err) {
+        console.error("送出失敗", err);
+        alert("送出失敗，請稍後再試");
+      }
+    });
+
+    fetchUsedSeats();
+  </script>
+</body>
+</html>
