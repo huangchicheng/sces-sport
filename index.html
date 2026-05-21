@@ -4,121 +4,353 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>興嘉國小運動登記</title>
+
   <style>
-    body { font-family: sans-serif; padding:1em; max-width:600px; margin:auto; }
-    .seats { display:flex; flex-wrap:wrap; gap:0.5em; justify-content:center; }
-    .seat { width:3em; height:3em; line-height:3em; text-align:center; border:1px solid #999; border-radius:5px; cursor:pointer; }
-    .used { background:lightgray; color:#666; pointer-events:none; }
-    .selected { background:lightgreen; font-weight:bold; }
-    button { width:100%; padding:1em; font-size:1.2em; }
+    body {
+      font-family: sans-serif;
+      padding: 1em;
+      max-width: 600px;
+      margin: auto;
+    }
+
+    h1 {
+      text-align: center;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 1em;
+    }
+
+    .seats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5em;
+      justify-content: center;
+      margin: 1em 0;
+    }
+
+    .seat {
+      width: 3em;
+      height: 3em;
+      line-height: 3em;
+      text-align: center;
+      border: 1px solid #999;
+      border-radius: 5px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .used {
+      background: lightgray;
+      color: #666;
+      pointer-events: none;
+    }
+
+    .selected {
+      background: lightgreen;
+      font-weight: bold;
+    }
+
+    button {
+      width: 100%;
+      padding: 1em;
+      font-size: 1.2em;
+    }
   </style>
+
 </head>
+
 <body>
-  <h1>興嘉國小運動登記</h1>
 
-  <label>日期：
-    <input type="date" id="date"/>
-  </label>
+<h1>興嘉國小運動登記</h1>
 
-  <label>班級：
-    <select id="class"></select>
-  </label>
+<label>
+日期：
+<input type="date" id="date"/>
+</label>
 
-  <div class="seats" id="seats"></div>
-  <button id="submit">送出</button>
+<label>
+班級：
+<select id="class"></select>
+</label>
 
-  <script>
-    const scriptURL = "https://script.google.com/macros/s/AKfycbxMSt3wMzTFrISsDqOvcZankbKkp8-0TaeXI5BM3Nux1FfiN__vsxdOzvmbRxK6L7sUrQ/exec";
-    const dateEl = document.getElementById("date");
-    const classEl = document.getElementById("class");
-    const seatsEl = document.getElementById("seats");
-    const usedSeats = new Set();
+<div id="seats" class="seats"></div>
 
-    // 初始化日期為今天
-    dateEl.value = new Date().toISOString().split("T")[0];
+<button id="submit">送出</button>
 
-    // 座號 1~26
-    for (let i=1; i<=26; i++){
-      const div = document.createElement("div");
-      div.className = "seat";
-      div.dataset.seat = i;
-      div.textContent = i;
-      seatsEl.appendChild(div);
-    }
+<script>
 
-    // 建班級選項
-    for (let y=1; y<=6; y++){
-      for (let c=1; c<=8; c++){
-        const opt = document.createElement("option");
-        opt.value = `${y}年${c}班`;
-        opt.textContent = opt.value;
-        classEl.appendChild(opt);
+const scriptURL =
+"https://script.google.com/macros/s/AKfycbxMSt3wMzTFrISsDqOvcZankbKkp8-0TaeXI5BM3Nux1FfiN__vsxdOzvmbRxK6L7sUrQ/exec";
+
+const dateEl = document.getElementById("date");
+const classEl = document.getElementById("class");
+const seatsEl = document.getElementById("seats");
+
+const usedSeats = new Set();
+
+
+// 今天日期
+dateEl.value = new Date()
+.toISOString()
+.split("T")[0];
+
+
+// 建立座號 1~26
+for(let i=1;i<=26;i++){
+
+  const div=document.createElement("div");
+
+  div.className="seat";
+  div.dataset.seat=i;
+  div.textContent=i;
+
+  seatsEl.appendChild(div);
+
+}
+
+
+// 建立班級 1~6年 1~8班
+for(let y=1;y<=6;y++){
+
+  for(let c=1;c<=8;c++){
+
+    const opt=document.createElement("option");
+
+    opt.value=`${y}年${c}班`;
+    opt.textContent=opt.value;
+
+    classEl.appendChild(opt);
+
+  }
+
+}
+
+
+// ===== 新增功能：網址固定班級 =====
+
+const urlParams =
+new URLSearchParams(window.location.search);
+
+const fixedClass =
+urlParams.get("class");
+
+if(fixedClass){
+
+  const classExists =
+  [...classEl.options]
+  .some(opt=>opt.value===fixedClass);
+
+  if(classExists){
+
+    classEl.value=fixedClass;
+
+    // 鎖定避免切換班級
+    classEl.disabled=true;
+
+  }
+
+}
+
+
+// 抓已登記資料
+async function fetchUsed(){
+
+  usedSeats.clear();
+
+  document
+  .querySelectorAll(".seat")
+  .forEach(el=>{
+
+    el.classList.remove(
+      "used",
+      "selected"
+    );
+
+    el.style.pointerEvents="auto";
+
+  });
+
+  const date=dateEl.value;
+  const className=classEl.value;
+
+  if(!date||!className) return;
+
+  try{
+
+    const res=
+    await fetch(
+      `${scriptURL}?date=${encodeURIComponent(date)}&className=${encodeURIComponent(className)}`
+    );
+
+    const json=
+    await res.json();
+
+    (json.seats||[])
+    .forEach(s=>{
+
+      usedSeats.add(
+        String(s)
+      );
+
+      const el=
+      document.querySelector(
+      `.seat[data-seat='${s}']`
+      );
+
+      if(el){
+
+        el.classList.add(
+          "used"
+        );
+
+        el.style.pointerEvents=
+        "none";
+
       }
-    }
 
-    async function fetchUsed(){
-      usedSeats.clear();
-      document.querySelectorAll(".seat").forEach(el=> {
-        el.classList.remove("used","selected");
-        el.style.pointerEvents="auto";
-      });
-
-      const date = dateEl.value;
-      const className = classEl.value;
-      if (!date || !className) return;
-
-      try {
-        const res = await fetch(`${scriptURL}?date=${date}&className=${encodeURIComponent(className)}`);
-        const json = await res.json();
-        (json.seats||[]).forEach(s=>{
-          usedSeats.add(s);
-          const el = document.querySelector(`.seat[data-seat='${s}']`);
-          if (el) {
-            el.classList.add("used");
-            el.style.pointerEvents="none";
-          }
-        });
-      } catch(err){
-        console.error(err);
-      }
-    }
-
-    classEl.addEventListener("change",fetchUsed);
-    dateEl.addEventListener("change",fetchUsed);
-
-    seatsEl.addEventListener("click", e=>{
-      if (!e.target.classList.contains("seat")) return;
-      if (e.target.classList.contains("used")) return;
-      e.target.classList.toggle("selected");
     });
 
-    document.getElementById("submit").addEventListener("click", async ()=>{
-      const date = dateEl.value;
-      const className = classEl.value;
-      const selected = Array.from(document.querySelectorAll(".seat.selected"))
-        .map(el=>el.dataset.seat)
-        .filter(s=>!usedSeats.has(s));
-      if (!date || !className || selected.length===0) {
-        alert("請選日期班級並選至少一個座號");
-        return;
+  }
+  catch(err){
+
+    console.error(
+      "取得失敗",
+      err
+    );
+
+  }
+
+}
+
+
+classEl.addEventListener(
+"change",
+fetchUsed
+);
+
+dateEl.addEventListener(
+"change",
+fetchUsed
+);
+
+
+// 點座號
+seatsEl.addEventListener(
+"click",
+e=>{
+
+  if(
+    !e.target.classList.contains("seat")
+  ) return;
+
+  if(
+    e.target.classList.contains("used")
+  ) return;
+
+  e.target.classList.toggle(
+    "selected"
+  );
+
+});
+
+
+// 送出
+document
+.getElementById("submit")
+.addEventListener(
+"click",
+async()=>{
+
+  const date=
+  dateEl.value;
+
+  const className=
+  classEl.value;
+
+  const selected=
+  [...document.querySelectorAll(".seat.selected")]
+
+  .map(el=>el.dataset.seat)
+
+  .filter(
+    s=>!usedSeats.has(s)
+  );
+
+  if(
+    !date||
+    !className||
+    selected.length===0
+  ){
+
+    alert(
+"請選日期、班級並至少選一個座號"
+    );
+
+    return;
+
+  }
+
+  const params=
+  new URLSearchParams();
+
+  params.set(
+    "date",
+    date
+  );
+
+  params.set(
+    "className",
+    className
+  );
+
+  params.set(
+    "seats",
+    selected.join(",")
+  );
+
+  try{
+
+    await fetch(
+      scriptURL,
+      {
+
+      method:"POST",
+
+      headers:{
+      "Content-Type":
+      "application/x-www-form-urlencoded"
+      },
+
+      body:
+      params.toString()
+
       }
+    );
 
-      const params = new URLSearchParams();
-      params.set("date", date);
-      params.set("className", className);
-      params.set("seats", selected.join(","));
-
-      await fetch(scriptURL,{
-        method:"POST",
-        headers: {"Content-Type":"application/x-www-form-urlencoded"},
-        body: params.toString()
-      });
-
-      alert("已送出！");
-      fetchUsed();
-    });
+    alert("已送出！");
 
     fetchUsed();
-  </script>
+
+  }
+  catch(err){
+
+    console.error(err);
+
+    alert(
+"送出失敗"
+    );
+
+  }
+
+});
+
+
+// 初始載入
+fetchUsed();
+
+</script>
+
 </body>
 </html>
